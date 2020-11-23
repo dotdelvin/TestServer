@@ -30,9 +30,19 @@ namespace TestServer.World
         public string Password { get; set; }
 
         /// <summary>
+        ///     Gets or sets the skin of this <see cref="Account"/>.
+        /// </summary>
+        public int Skin { get; set; }
+
+        /// <summary>
         ///     Gets or sets the money of this <see cref="Account"/>.
         /// </summary>
         public int Money { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the score of this <see cref="Account"/>.
+        /// </summary>
+        public int Score { get; set; }
 
         /// <summary>
         ///     Gets or sets the health of this <see cref="Account"/>.
@@ -83,7 +93,9 @@ namespace TestServer.World
             account.Password = password;
 
             // Sets default values.
+            account.Skin = 1;
             account.Money = 0;
+            account.Score = 1;
             account.Health = 100;
             account.Armour = 0;
 

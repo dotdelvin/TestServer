@@ -1,8 +1,12 @@
-﻿using SampSharp.GameMode.Pools;
+﻿using SampSharp.GameMode.Display;
+using SampSharp.GameMode.Events;
+using SampSharp.GameMode.Pools;
+using SampSharp.GameMode.SAMP;
 using SampSharp.GameMode.World;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace TestServer.World
 {
@@ -12,26 +16,54 @@ namespace TestServer.World
         #region Properties
 
         /// <summary>
+        ///     Gets whether this <see cref="Player"/> has an <see cref="Account"/>.
+        /// </summary>
+        public bool HasAccount =>
+            Account.Exists(Name);
+
+        /// <summary>
         ///     Gets whether this <see cref="Player"/> is logged into any <see cref="World.Account"/>.
         /// </summary>
         public bool IsLoggedIn =>
             Account != null;
 
         /// <summary>
+        ///     Gets whether this <see cref="Player"/> has an <see cref="World.Account"/> and it logged in.
+        /// </summary>
+        public bool IsHasAccountAndLoggedIn =>
+           HasAccount && IsLoggedIn;
+
+        /// <summary>
         ///     Gets the <see cref="Account"/> this <see cref="Player"/> is currently in.
         /// </summary>
         public Account Account { get; private set; }
+
+        /// <summary>
+        ///     Gets whether the <see cref="Player"/>'s name matches the roleplay format.
+        /// </summary>
+        public bool IsRolePlayName =>
+            Regex.IsMatch(Name, @"^([A-Z][a-z]+_[A-Z][a-z]+)$");
 
         #endregion
 
         #region Static Properties
 
+        /// <summary>
+        /// <inheritdoc cref="IdentifiedPool{TInstance}.All"/>
+        /// </summary>
         public static new IEnumerable<Player> All =>
             BasePlayer.All.Select(player => (Player)player);
 
         #endregion
 
         #region Methods
+
+        /// <summary>
+        ///     Kicks this <see cref="Player"/> from the server when the timer expires.
+        /// </summary>
+        /// <param name="timer">The timer of the kick.</param>
+        public void Kick(int timer) =>
+            Timer.RunOnce(timer, () => Kick());
 
         /// <summary>
         ///     Logs this <see cref="Player"/> in a specified account.
@@ -62,22 +94,96 @@ namespace TestServer.World
             Account = null;
         }
 
+        /// <summary>
+        ///     Shows the login dialog for this <see cref="Player"/>.
+        /// </summary>
+        public void ShowLoginDialog()
+        {
+            var dialog = new InputDialog("Login", "Enter the password", true, "Ok");
+
+            dialog.Response += (sender, e) =>
+            {
+                if (!LogIn(Name, e.InputText))
+                {
+                    dialog.Show(this);
+                    return;
+                }
+            };
+
+            dialog.Show(this);
+        }
+
+        /// <summary>
+        ///     Shows the register dialog for this <see cref="Player"/>.
+        /// </summary>
+        public void ShowRegisterDialog()
+        {
+            var dialog = new InputDialog("Register", "Enter a password", false, "Ok");
+
+            dialog.Response += (sender, e) =>
+            {
+                string password = e.InputText;
+
+                if (string.IsNullOrWhiteSpace(password))
+                {
+                    dialog.Show(this);
+                    return;
+                }
+
+                Account.Create(Name, password);
+                LogIn(Name, password);
+            };
+
+            dialog.Show(this);
+        }
+
         #endregion
 
         #region Callback Methods
 
-        protected override void Initialize()
+        public override void OnText(TextEventArgs e)
         {
-            base.Initialize();
+            base.OnText(e);
 
-            Account.Create(Name, "Qwerty");
+            e.SendToPlayers = false;
+
+            string errorMessage = null;
+
+            if (!HasAccount)
+                errorMessage = "You don't have an account.";
+            else if (!IsLoggedIn)
+                errorMessage = "You aren't logged in.";
+
+            if (errorMessage != null)
+                SendClientMessage(errorMessage);
         }
 
         public override void OnConnected(EventArgs e)
         {
             base.OnConnected(e);
-            
-            LogIn(Name, "Qwerty");
+
+            Timer.RunOnce(Ping, () =>
+            {
+                if (!IsRolePlayName)
+                {
+                    SendClientMessage("Your name doesn't match the roleplay format.");
+                    Kick(Ping);
+                    return;
+                }
+
+                if (HasAccount)
+                    ShowLoginDialog();
+                else
+                    ShowRegisterDialog();
+            });
+        }
+
+        public override void OnRequestSpawn(RequestSpawnEventArgs e)
+        {
+            base.OnRequestSpawn(e);
+
+            if (!IsHasAccountAndLoggedIn)
+                e.PreventSpawning = true;
         }
 
         #endregion
