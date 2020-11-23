@@ -3,6 +3,9 @@ using System.Linq;
 
 namespace TestServer.World
 {
+    /// <summary>
+    ///     Represents an account.
+    /// </summary>
     public class Account : IdentifiedPool<Account>
     {
         #region Constants
