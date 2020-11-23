@@ -7,10 +7,10 @@
 
   <ItemGroup>
     <Reference Include="SampSharp.Core">
-      <HintPath>..\..\SampSharp\env\gamemode\netcoreapp3.1\SampSharp.Core.dll</HintPath>
+      <HintPath>..\..\..\..\Downloads\SampSharp-0.9.3\env\gamemode\netcoreapp3.0\SampSharp.Core.dll</HintPath>
     </Reference>
     <Reference Include="SampSharp.GameMode">
-      <HintPath>..\..\SampSharp\env\gamemode\netcoreapp3.1\SampSharp.GameMode.dll</HintPath>
+      <HintPath>..\..\..\..\Downloads\SampSharp-0.9.3\env\gamemode\netcoreapp3.0\SampSharp.GameMode.dll</HintPath>
     </Reference>
   </ItemGroup>
 

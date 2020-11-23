@@ -1,4 +1,5 @@
-﻿using SampSharp.GameMode.Display;
+﻿using SampSharp.GameMode;
+using SampSharp.GameMode.Display;
 using SampSharp.GameMode.Events;
 using SampSharp.GameMode.Pools;
 using SampSharp.GameMode.SAMP;
@@ -80,7 +81,16 @@ namespace TestServer.World
 
             if (!password.Equals(account.Password))
                 return false;
+            
+            var spawn = account.Spawn;
 
+            SetSpawnInfo(Team, account.Skin, spawn.Position, spawn.Angle);
+
+            Money = account.Money;
+            Score = account.Score;
+            Health = account.Health;
+            Armour = account.Armour;
+            Color = account.Color;
             Account = account;
 
             return true;
@@ -91,6 +101,13 @@ namespace TestServer.World
         /// </summary>
         public void LogOut()
         {
+            SetSpawnInfo(Team, 0, new Vector3(), 0);
+
+            Money = 0;
+            Score = 0;
+            Health = 100;
+            Armour = 0;
+            Color = 0;
             Account = null;
         }
 
@@ -108,6 +125,8 @@ namespace TestServer.World
                     dialog.Show(this);
                     return;
                 }
+
+                Spawn();
             };
 
             dialog.Show(this);
@@ -131,7 +150,9 @@ namespace TestServer.World
                 }
 
                 Account.Create(Name, password);
+
                 LogIn(Name, password);
+                Spawn();
             };
 
             dialog.Show(this);
@@ -145,7 +166,9 @@ namespace TestServer.World
         {
             base.OnText(e);
 
-            e.SendToPlayers = false;
+            // TODO: Make your own chat.
+            if (!IsHasAccountAndLoggedIn)
+                e.SendToPlayers = false;
 
             string errorMessage = null;
 

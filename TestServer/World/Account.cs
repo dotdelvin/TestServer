@@ -1,4 +1,6 @@
-﻿using SampSharp.GameMode.Pools;
+﻿using SampSharp.GameMode;
+using SampSharp.GameMode.Pools;
+using SampSharp.GameMode.SAMP;
 using System.Linq;
 
 namespace TestServer.World
@@ -55,6 +57,16 @@ namespace TestServer.World
         public float Armour { get; set; }
 
         /// <summary>
+        ///     Gets or sets the color of this <see cref="Account"/>.
+        /// </summary>
+        public Color Color { get; set; }
+
+        /// <summary>
+        ///     Gets the spawn of this <see cref="Account"/>.
+        /// </summary>
+        public Place Spawn { get; set; }
+
+        /// <summary>
         ///     Gets the <see cref="World.Player"/> is currently using this <see cref="Account"/>.
         /// </summary>
         public Player Player =>
@@ -98,6 +110,8 @@ namespace TestServer.World
             account.Score = 1;
             account.Health = 100;
             account.Armour = 0;
+            account.Color = Color.White;
+            account.Spawn = new Place(new Vector3(2847.8303, 1290.8995, 11.3906), 93.0609f);
 
             PoolSize++;
 
