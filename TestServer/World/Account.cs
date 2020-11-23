@@ -71,7 +71,10 @@ namespace TestServer.World
 
         public static Account Create(string name, string password)
         {
-            if (PoolSize == Max || Exists(name))
+            if (PoolSize == Max)
+                return null;
+
+            if (Exists(name))
                 return null;
 
             var account = FindOrCreate(PoolSize);

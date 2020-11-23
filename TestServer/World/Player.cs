@@ -18,7 +18,7 @@ namespace TestServer.World
             Account != null;
 
         /// <summary>
-        ///     Gets the <see cref="Account"/> this <see cref="Player"/> in currently in.
+        ///     Gets the <see cref="Account"/> this <see cref="Player"/> is currently in.
         /// </summary>
         public Account Account { get; private set; }
 
@@ -65,6 +65,13 @@ namespace TestServer.World
         #endregion
 
         #region Callback Methods
+
+        protected override void Initialize()
+        {
+            base.Initialize();
+
+            Account.Create(Name, "Qwerty");
+        }
 
         public override void OnConnected(EventArgs e)
         {
