@@ -14,6 +14,10 @@ namespace TestServer.World
     [PooledType]
     public class Player : BasePlayer
     {
+        private int _pauseTick;
+
+        public const int Rate = 30;
+
         #region Properties
 
         /// <summary>
@@ -40,10 +44,22 @@ namespace TestServer.World
         public Account Account { get; private set; }
 
         /// <summary>
-        ///     Gets whether the <see cref="Player"/>'s name matches the roleplay format.
+        ///     Gets whether this <see cref="Player"/>'s name matches the roleplay format.
         /// </summary>
         public bool IsRolePlayName =>
             Regex.IsMatch(Name, @"^([A-Z][a-z]+_[A-Z][a-z]+)$");
+
+        /// <summary>
+        ///     Gets whether this <see cref="Player"/> is paused.
+        /// </summary>
+        public bool IsPaused =>
+            (PausedTime / 1000) > 0;
+
+        /// <summary>
+        ///     Gets the amount of time (in milliseconds) that a player has been paused.
+        /// </summary>
+        public int PausedTime =>
+            _pauseTick * Rate;
 
         #endregion
 
@@ -165,7 +181,7 @@ namespace TestServer.World
         public override void OnText(TextEventArgs e)
         {
             base.OnText(e);
-
+            
             // TODO: Make your own chat.
             if (!IsHasAccountAndLoggedIn)
                 e.SendToPlayers = false;
@@ -181,9 +197,19 @@ namespace TestServer.World
                 SendClientMessage(errorMessage);
         }
 
+        public override void OnUpdate(PlayerUpdateEventArgs e)
+        {
+            base.OnUpdate(e);
+
+            _pauseTick = 0;
+        }
+
         public override void OnConnected(EventArgs e)
         {
             base.OnConnected(e);
+
+            // Starts a timer that runs in the background (even when this player has minimized the game).
+            Timer.Run(Rate, () => _pauseTick++);
 
             Timer.RunOnce(Ping, () =>
             {
@@ -199,6 +225,13 @@ namespace TestServer.World
                 else
                     ShowRegisterDialog();
             });
+        }
+
+        public override void OnDisconnected(DisconnectEventArgs e)
+        {
+            base.OnDisconnected(e);
+
+            LogOut();
         }
 
         public override void OnRequestSpawn(RequestSpawnEventArgs e)
