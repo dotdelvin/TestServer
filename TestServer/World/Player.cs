@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using TestServer.Events;
 
 namespace TestServer.World
 {
@@ -16,13 +17,22 @@ namespace TestServer.World
     {
         #region Fields
 
-        private int _pauseTick;
+        private int _tick;
+        private Timer _updateTimer;
 
         #endregion
 
         #region Constants
 
         public const int Rate = 30;
+
+        #endregion
+
+        #region Events
+
+        public event EventHandler<EventArgs> Joined;
+        public event EventHandler<EventArgs> Paused;
+        public event EventHandler<ResumeEventArgs> Resumed;
 
         #endregion
 
@@ -61,13 +71,13 @@ namespace TestServer.World
         ///     Gets whether this <see cref="Player"/> is paused (minimized the game).
         /// </summary>
         public bool IsPaused =>
-            (PausedTime / 1000) > 0;
+            (_tick > 0) && ((PausedTime / 1000) > 0);
 
         /// <summary>
         ///     Gets the amount of time (in milliseconds) that a player has been paused.
         /// </summary>
         public int PausedTime =>
-            _pauseTick * Rate;
+            ConnectedTime - _tick;
 
         #endregion
 
@@ -190,6 +200,58 @@ namespace TestServer.World
 
         #region Callback Methods
 
+        /// <summary>
+        ///     Raises the <see cref="Joined"/> event.
+        /// </summary>
+        /// <param name="e">An <see cref="EventArgs"/> that contains the event data.</param>
+        public void OnJoined(EventArgs e)
+        {
+            Joined?.Invoke(this, e);
+
+            if (!IsRolePlayName)
+            {
+                SendClientMessage("Your name doesn't match the roleplay format.");
+                Kick(Ping);
+                return;
+            }
+
+            if (HasAccount)
+                ShowLoginDialog();
+            else
+                ShowRegisterDialog();
+        }
+
+        /// <summary>
+        ///     Raises the <see cref="Paused"/> event.
+        /// </summary>
+        /// <param name="e">An <see cref="EventArgs"/> that contains the event data.</param>
+        public void OnPaused(EventArgs e)
+        {
+            Paused?.Invoke(this, e);
+
+            int seconds = PausedTime / 1000;
+
+            SetChatBubble($"Pause {seconds}s", Color.White, 20, 1000);
+
+            // TODO: Delete.
+            Console.WriteLine($"[Pause] {Name} is paused for {seconds} seconds.");
+        }
+
+        /// <summary>
+        ///     Raises the <see cref="Resumed"/> event.
+        /// </summary>
+        /// <param name="e">An <see cref="ResumeEventArgs"/> that contains the event data.</param>
+        public void OnResumed(ResumeEventArgs e)
+        {
+            Resumed?.Invoke(this, e);
+
+            SendClientMessage($"You've been paused for {e.Time / 1000} seconds.");
+        }
+
+        #endregion
+
+        #region Override Callback Methods
+
         public override void OnText(TextEventArgs e)
         {
             base.OnText(e);
@@ -213,36 +275,32 @@ namespace TestServer.World
         {
             base.OnUpdate(e);
 
-            _pauseTick = 0;
+            if (IsPaused)
+                OnResumed(new ResumeEventArgs(PausedTime));
+
+            _tick = ConnectedTime;
         }
 
         public override void OnConnected(EventArgs e)
         {
             base.OnConnected(e);
-            
+
             // Starts a timer that runs in the background (even when this player has minimized the game).
-            Timer.Run(Rate, () => _pauseTick++);
-
-            Timer.RunOnce(Ping, () =>
+            _updateTimer = Timer.Run(Rate, () =>
             {
-                if (!IsRolePlayName)
-                {
-                    SendClientMessage("Your name doesn't match the roleplay format.");
-                    Kick(Ping);
-                    return;
-                }
-
-                if (HasAccount)
-                    ShowLoginDialog();
-                else
-                    ShowRegisterDialog();
+                if (IsPaused)
+                    OnPaused(new EventArgs());
             });
+
+            Timer.RunOnce(Ping, () => OnJoined(e));
         }
 
         public override void OnDisconnected(DisconnectEventArgs e)
         {
             base.OnDisconnected(e);
 
+            _updateTimer.IsRunning = false;
+            
             LogOut();
         }
 
