@@ -14,9 +14,17 @@ namespace TestServer.World
     [PooledType]
     public class Player : BasePlayer
     {
+        #region Fields
+
         private int _pauseTick;
 
+        #endregion
+
+        #region Constants
+
         public const int Rate = 30;
+
+        #endregion
 
         #region Properties
 
@@ -50,7 +58,7 @@ namespace TestServer.World
             Regex.IsMatch(Name, @"^([A-Z][a-z]+_[A-Z][a-z]+)$");
 
         /// <summary>
-        ///     Gets whether this <see cref="Player"/> is paused.
+        ///     Gets whether this <see cref="Player"/> is paused (minimized the game).
         /// </summary>
         public bool IsPaused =>
             (PausedTime / 1000) > 0;
@@ -100,8 +108,10 @@ namespace TestServer.World
             
             var spawn = account.Spawn;
 
-            SetSpawnInfo(Team, account.Skin, spawn.Position, spawn.Angle);
+            SetSpawnInfo(account.Team, account.Skin, spawn.Position, spawn.Angle);
 
+            Team = account.Team;
+            Skin = account.Skin;
             Money = account.Money;
             Score = account.Score;
             Health = account.Health;
@@ -117,8 +127,10 @@ namespace TestServer.World
         /// </summary>
         public void LogOut()
         {
-            SetSpawnInfo(Team, 0, new Vector3(), 0);
+            SetSpawnInfo(0, 0, new Vector3(), 0);
 
+            Team = 0;
+            Skin = 0;
             Money = 0;
             Score = 0;
             Health = 100;
@@ -181,7 +193,7 @@ namespace TestServer.World
         public override void OnText(TextEventArgs e)
         {
             base.OnText(e);
-            
+
             // TODO: Make your own chat.
             if (!IsHasAccountAndLoggedIn)
                 e.SendToPlayers = false;
@@ -207,7 +219,7 @@ namespace TestServer.World
         public override void OnConnected(EventArgs e)
         {
             base.OnConnected(e);
-
+            
             // Starts a timer that runs in the background (even when this player has minimized the game).
             Timer.Run(Rate, () => _pauseTick++);
 
