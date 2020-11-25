@@ -12,6 +12,8 @@ namespace TestServer.World
     {
         #region Fields
 
+        private string _name;
+        private string _password;
         private int _team;
         private int _skin;
         private int _money;
@@ -30,6 +32,11 @@ namespace TestServer.World
         /// </summary>
         public const int Max = 10000;
 
+        /// <summary>
+        ///     Maximum length of a account's password.
+        /// </summary>
+        public const int MaxPasswordLength = 32;
+
         #endregion
 
         #region Properties
@@ -37,12 +44,32 @@ namespace TestServer.World
         /// <summary>
         ///     Gets or sets the name of this <see cref="Account"/>.
         /// </summary>
-        public string Name { get; set; }
+        public string Name
+        {
+            get => _name;
+            set
+            {
+                _name = value;
+
+                if (Player != null)
+                    Player.Name = _name;
+            }
+        }
 
         /// <summary>
         ///     Gets or sets the password of this <see cref="Account"/>.
         /// </summary>
-        public string Password { get; set; }
+        public string Password
+        {
+            get => _password;
+            set
+            {
+                if (value.Length > MaxPasswordLength)
+                    return;
+
+                _password = value;
+            }
+        }
 
         /// <summary>
         ///     Gets or sets the team of this <see cref="Account"/>.
@@ -187,13 +214,26 @@ namespace TestServer.World
 
         #endregion
 
+        #region Methods
+
+        public void Init()
+        {
+            Team = 0;
+            Skin = 1;
+            Money = 0;
+            Score = 1;
+            Health = 100;
+            Armour = 0;
+            Color = Color.White;
+            Spawn = new Place(new Vector3(2847.8303, 1290.8995, 11.3906), 93.0609f);
+        }
+
+        #endregion
+
         #region Static Methods
 
         public static bool Exists(string name) =>
             All.Any(account => account.Name == name);
-
-        public static Account Find(string name) =>
-            All.SingleOrDefault(account => account.Name == name);
 
         public static Account Create(string name, string password)
         {
@@ -203,20 +243,14 @@ namespace TestServer.World
             if (Exists(name))
                 return null;
 
+            if (password.Length > MaxPasswordLength)
+                return null;
+
             var account = FindOrCreate(PoolSize);
 
             account.Name = name;
             account.Password = password;
-
-            // Sets default values.
-            account.Team = 0;
-            account.Skin = 1;
-            account.Money = 0;
-            account.Score = 1;
-            account.Health = 100;
-            account.Armour = 0;
-            account.Color = Color.White;
-            account.Spawn = new Place(new Vector3(2847.8303, 1290.8995, 11.3906), 93.0609f);
+            account.Init();
 
             PoolSize++;
 

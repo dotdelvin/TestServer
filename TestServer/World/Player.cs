@@ -1,4 +1,5 @@
 ﻿using SampSharp.GameMode;
+using SampSharp.GameMode.Definitions;
 using SampSharp.GameMode.Display;
 using SampSharp.GameMode.Events;
 using SampSharp.GameMode.Pools;
@@ -22,44 +23,42 @@ namespace TestServer.World
 
         #endregion
 
-        #region Constants
-
-        public const int Rate = 30;
-
-        #endregion
-
         #region Events
-
+        
         public event EventHandler<EventArgs> Joined;
         public event EventHandler<EventArgs> Paused;
         public event EventHandler<ResumeEventArgs> Resumed;
+        public event EventHandler<AccountEventArgs> LoggedIn;
+        public event EventHandler<EventArgs> LoggedOut;
+        public event EventHandler<AccountEventArgs> Registered;
+        public event EventHandler<EventArgs> Unregistered;
 
         #endregion
 
         #region Properties
 
         /// <summary>
-        ///     Gets whether this <see cref="Player"/> has an <see cref="Account"/>.
+        ///     Gets whether this <see cref="Player"/> has any <see cref="Account"/>.
         /// </summary>
         public bool HasAccount =>
-            Account.Exists(Name);
-
-        /// <summary>
-        ///     Gets whether this <see cref="Player"/> is logged into any <see cref="World.Account"/>.
-        /// </summary>
-        public bool IsLoggedIn =>
             Account != null;
 
         /// <summary>
-        ///     Gets whether this <see cref="Player"/> has an <see cref="World.Account"/> and it logged in.
+        ///     Gets whether this <see cref="Player"/> is logged into his <see cref="Account"/>.
         /// </summary>
-        public bool IsHasAccountAndLoggedIn =>
-           HasAccount && IsLoggedIn;
+        public bool IsLoggedIn { get; private set; }
 
         /// <summary>
-        ///     Gets the <see cref="Account"/> this <see cref="Player"/> is currently in.
+        ///     Gets whether this <see cref="Player"/> has any account and is logged in.
         /// </summary>
-        public Account Account { get; private set; }
+        public bool IsHasAccountAndLoggedIn =>
+            HasAccount && IsLoggedIn;
+
+        /// <summary>
+        ///     Gets the <see cref="World.Account"/> of this <see cref="Player"/>.
+        /// </summary>
+        public Account Account =>
+            Account.All.SingleOrDefault(account => account.Name == Name);
 
         /// <summary>
         ///     Gets whether this <see cref="Player"/>'s name matches the roleplay format.
@@ -71,13 +70,13 @@ namespace TestServer.World
         ///     Gets whether this <see cref="Player"/> is paused (minimized the game).
         /// </summary>
         public bool IsPaused =>
-            (_tick > 0) && ((PausedTime / 1000) > 0);
+            (_tick > 0) && (PausedTime / 1000) > 0;
 
         /// <summary>
         ///     Gets the amount of time (in milliseconds) that a player has been paused.
         /// </summary>
         public int PausedTime =>
-            ConnectedTime - _tick;
+            Server.GetTickCount() - _tick;
 
         #endregion
 
@@ -101,42 +100,45 @@ namespace TestServer.World
             Timer.RunOnce(timer, () => Kick());
 
         /// <summary>
-        ///     Logs this <see cref="Player"/> in a specified account.
+        ///     Logs the <see cref="Player"/> into this <see cref="Account"/>.
         /// </summary>
-        /// <param name="name">The name of the <see cref="Account"/>.</param>
-        /// <param name="password">The password of the <see cref="Account"/>.</param>
-        /// <returns>True if successfully logged in; otherwise false.</returns>
-        public bool LogIn(string name, string password)
+        /// <param name="password">The password of this <see cref="Account"/>.</param>
+        /// <returns></returns>
+        public bool Login(string password)
         {
-            var account = Account.Find(name);
-
-            if (account == null)
+            if (IsLoggedIn)
                 return false;
 
-            if (!password.Equals(account.Password))
+            if (!password.Equals(Account.Password))
                 return false;
-            
-            var spawn = account.Spawn;
 
-            SetSpawnInfo(account.Team, account.Skin, spawn.Position, spawn.Angle);
+            var spawn = Account.Spawn;
 
-            Team = account.Team;
-            Skin = account.Skin;
-            Money = account.Money;
-            Score = account.Score;
-            Health = account.Health;
-            Armour = account.Armour;
-            Color = account.Color;
-            Account = account;
+            SetSpawnInfo(Account.Team, Account.Skin, spawn.Position, spawn.Angle);
+
+            Team = Account.Team;
+            Skin = Account.Skin;
+            Money = Account.Money;
+            Score = Account.Score;
+            Health = Account.Health;
+            Armour = Account.Armour;
+            Color = Account.Color;
+
+            IsLoggedIn = true;
+
+            OnLogin(new AccountEventArgs(Account));
 
             return true;
         }
 
         /// <summary>
-        ///     Logs out this <see cref="Player"/> from the current account.
+        ///     Logs out the <see cref="Player"/> from this <see cref="Account"/>.
         /// </summary>
-        public void LogOut()
+        public void Logout()
         {
+            if (!IsLoggedIn)
+                return;
+
             SetSpawnInfo(0, 0, new Vector3(), 0);
 
             Team = 0;
@@ -146,7 +148,37 @@ namespace TestServer.World
             Health = 100;
             Armour = 0;
             Color = 0;
-            Account = null;
+
+            IsLoggedIn = false;
+
+            OnLogout(new EventArgs());
+        }
+
+        /// <summary>
+        ///     Registers this <see cref="Player"/> on this server.
+        /// </summary>
+        /// <param name="password"></param>
+        public void Register(string password)
+        {
+            if (HasAccount)
+                return;
+
+            Account.Create(Name, password);
+
+            OnRegistered(new AccountEventArgs(Account));
+        }
+
+        /// <summary>
+        ///     Unregisters this <see cref="Player"/> on this server.
+        /// </summary>
+        public void Unregister()
+        {
+            if (!HasAccount)
+                return;
+
+            Account.Dispose();
+
+            OnUnregistered(new EventArgs());
         }
 
         /// <summary>
@@ -154,11 +186,23 @@ namespace TestServer.World
         /// </summary>
         public void ShowLoginDialog()
         {
-            var dialog = new InputDialog("Login", "Enter the password", true, "Ok");
+            string[] lines =
+            {
+                $"{Color.White}Name: {Color.IndianRed}{Name}\n",
+                $"{Color.White}Enter the password of this account:"
+            };
+
+            var dialog = new InputDialog("Login", string.Join('\n', lines), true, "Ok", "Leave");
 
             dialog.Response += (sender, e) =>
             {
-                if (!LogIn(Name, e.InputText))
+                if (e.DialogButton == DialogButton.Right)
+                {
+                    Kick();
+                    return;
+                }
+
+                if (!Login(e.InputText))
                 {
                     dialog.Show(this);
                     return;
@@ -175,11 +219,23 @@ namespace TestServer.World
         /// </summary>
         public void ShowRegisterDialog()
         {
-            var dialog = new InputDialog("Register", "Enter a password", false, "Ok");
+            string[] lines =
+            {
+                $"{Color.White}Name: {Color.IndianRed}{Name}\n",
+                $"{Color.White}Enter the password for this account:"
+            };
+            
+            var dialog = new InputDialog("Register", string.Join('\n', lines), false, "Ok", "Leave");
 
             dialog.Response += (sender, e) =>
             {
                 string password = e.InputText;
+
+                if (e.DialogButton == DialogButton.Right)
+                {
+                    Kick();
+                    return;
+                }
 
                 if (string.IsNullOrWhiteSpace(password))
                 {
@@ -187,13 +243,42 @@ namespace TestServer.World
                     return;
                 }
 
-                Account.Create(Name, password);
-
-                LogIn(Name, password);
-                Spawn();
+                Register(password);
+                ShowLoginDialog();
             };
 
             dialog.Show(this);
+        }
+
+        /// <summary>
+        ///     Sends a message to the global chat.
+        /// </summary>
+        /// <param name="message">The message to send.</param>
+        public void SendChatMessage(string message) =>
+            SendChatMessage(Color.White, message);
+
+        /// <summary>
+        ///     Sends a message to the global chat.
+        /// </summary>
+        /// <param name="color">The color for the message.</param>
+        /// <param name="message">The message to send.</param>
+        public void SendChatMessage(Color color, string message)
+        {
+            if (!IsHasAccountAndLoggedIn)
+                return;
+
+            float radius = 20;
+
+            foreach (var player in All)
+            {
+                if (!player.IsHasAccountAndLoggedIn)
+                    continue;
+
+                if (!player.IsInRangeOfPoint(radius, Position))
+                    continue;
+
+                player.SendClientMessage(color, message);
+            }
         }
 
         #endregion
@@ -229,12 +314,7 @@ namespace TestServer.World
         {
             Paused?.Invoke(this, e);
 
-            int seconds = PausedTime / 1000;
-
-            SetChatBubble($"Pause {seconds}s", Color.White, 20, 1000);
-
-            // TODO: Delete.
-            Console.WriteLine($"[Pause] {Name} is paused for {seconds} seconds.");
+            SetChatBubble($"Pause {PausedTime / 1000}s", Color.White, 20, 1000);
         }
 
         /// <summary>
@@ -248,6 +328,68 @@ namespace TestServer.World
             SendClientMessage($"You've been paused for {e.Time / 1000} seconds.");
         }
 
+        /// <summary>
+        ///     Raises the <see cref="LoggedIn"/> event.
+        /// </summary>
+        /// <param name="e">An <see cref="AccountEventArgs"/> that contains the event data.</param>
+        public void OnLogin(AccountEventArgs e)
+        {
+            LoggedIn?.Invoke(this, e);
+
+            SendClientMessage("You've successfully logged in.");
+        }
+
+        /// <summary>
+        ///     Raises the <see cref="LoggedOut"/> event.
+        /// </summary>
+        /// <param name="e">An <see cref="EventArgs"/> that contains the event data.</param>
+        public void OnLogout(EventArgs e)
+        {
+            LoggedOut?.Invoke(this, e);
+        }
+
+        /// <summary>
+        ///     Raises the <see cref="Registered"/> event.
+        /// </summary>
+        /// <param name="e">An <see cref="AccountEventArgs"/> that contains the event data.</param>
+        public void OnRegistered(AccountEventArgs e)
+        {
+            Registered?.Invoke(this, e);
+
+            SendClientMessage("You've successfully registered.");
+        }
+
+        /// <summary>
+        ///     Raises the <see cref="Unregistered"/> event.
+        /// </summary>
+        /// <param name="e">An <see cref="EventArgs"/> that contains the event data.</param>
+        public void OnUnregistered(EventArgs e)
+        {
+            Unregistered?.Invoke(this, e);
+        }
+
+        #endregion
+
+        #region Override Methods
+
+        protected override void Initialize()
+        {
+            base.Initialize();
+
+            _updateTimer = Timer.Run(30, () =>
+            {
+                if (IsPaused)
+                    OnPaused(new EventArgs());
+            });
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+
+            _updateTimer.Dispose();
+        }
+
         #endregion
 
         #region Override Callback Methods
@@ -256,9 +398,8 @@ namespace TestServer.World
         {
             base.OnText(e);
 
-            // TODO: Make your own chat.
-            if (!IsHasAccountAndLoggedIn)
-                e.SendToPlayers = false;
+            // Disables standard chat.
+            e.SendToPlayers = false;
 
             string errorMessage = null;
 
@@ -268,7 +409,12 @@ namespace TestServer.World
                 errorMessage = "You aren't logged in.";
 
             if (errorMessage != null)
+            {
                 SendClientMessage(errorMessage);
+                return;
+            }
+
+            SendChatMessage($"{Account.Color}{Account.Name}{Color.White} says: {e.Text}");
         }
 
         public override void OnUpdate(PlayerUpdateEventArgs e)
@@ -278,19 +424,12 @@ namespace TestServer.World
             if (IsPaused)
                 OnResumed(new ResumeEventArgs(PausedTime));
 
-            _tick = ConnectedTime;
+            _tick = Server.GetTickCount();
         }
 
         public override void OnConnected(EventArgs e)
         {
             base.OnConnected(e);
-
-            // Starts a timer that runs in the background (even when this player has minimized the game).
-            _updateTimer = Timer.Run(Rate, () =>
-            {
-                if (IsPaused)
-                    OnPaused(new EventArgs());
-            });
 
             Timer.RunOnce(Ping, () => OnJoined(e));
         }
@@ -299,16 +438,14 @@ namespace TestServer.World
         {
             base.OnDisconnected(e);
 
-            _updateTimer.IsRunning = false;
-            
-            LogOut();
+            Logout();
         }
 
         public override void OnRequestSpawn(RequestSpawnEventArgs e)
         {
             base.OnRequestSpawn(e);
 
-            if (!IsHasAccountAndLoggedIn)
+            if (!(HasAccount && IsLoggedIn))
                 e.PreventSpawning = true;
         }
 
